@@ -12,8 +12,8 @@ import numpy.linalg as la
 from scipy.integrate import quadrature
 
 # Training function slightly modified from PyTorch quickstart tutorial
-def train(dataloader, model, device, T=15):
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-3)
+def train(dataloader, model, device, lr=5e-3, T=15):
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     
     size = len(dataloader.dataset)
@@ -45,22 +45,14 @@ class RNN(nn.Module):
         self.network_size = network_size
         self.rank=rank
 
-        # Weight initialization
-        #unit rank rnn weight matrix J=mn^T/n
-        if rank==1:
-            self.m = nn.Parameter(torch.Tensor(self.network_size))
-            self.n = nn.Parameter(torch.Tensor(self.network_size))
-            self.wi = torch.Tensor(self.network_size)
-            self.w = torch.Tensor(self.network_size)
-            self.x0= torch.Tensor(self.network_size)
-        else:
-            self.m = nn.Parameter(torch.Tensor(self.network_size,self.rank))
-            self.n = nn.Parameter(torch.Tensor(self.network_size,self.rank))
-            self.wi = torch.Tensor(self.network_size, self.rank)
-            self.w = torch.Tensor(self.network_size,1)
-            self.x0= torch.Tensor(self.network_size,1)
 
-                # Parameters for weight update formula
+        self.m = nn.Parameter(torch.Tensor(network_size, rank))
+        self.n = nn.Parameter(torch.Tensor(network_size, rank))
+        self.wi = torch.Tensor(network_size)
+        self.w = torch.Tensor(network_size, 1)
+        self.x0= torch.Tensor(network_size, 1)
+
+        # Parameters for weight update formula
         self.tau = 100 #ms
         self.dt = 20 #ms
 
@@ -74,10 +66,16 @@ class RNN(nn.Module):
             self.x0.zero_()
             self.wi.normal_(std=1)
 
-    def forward(self, u,visible_activity=False):
+    def forward(self, u, visible_activity=False):
+        
+        # print(u)
+        if len(u.shape) == 1:
+            u = u.unsqueeze(0)
+            
         input_len=u.size(1)
         batch_size=u.size(0)
-        x = self.x0
+        
+        x = torch.zeros(batch_size, self.network_size)
         z = torch.zeros(u.shape)
 
         r = self.activation(x)
@@ -86,14 +84,11 @@ class RNN(nn.Module):
             unit_activity = torch.zeros(batch_size, input_len+1, self.network_size)
             unit_activity[:,0,:] = x
 
-        #unit rank rnn weight matrix J=mn^T/n
-        # J = torch.matmul(self.m[:,None], self.n[None,:]) / self.network_size
-
         for i in range(input_len):
             delta_x = (
                 -x
-                + r.matmul(self.n[:,None]).matmul(self.m[:,None].t()) / self.network_size
-                + torch.matmul(u[:,i,None], self.wi[None,:])
+                + r.matmul(self.n).matmul(self.m.t()) / self.network_size
+                + torch.outer(u[:,i], self.wi.squeeze())
             ) * (self.dt / self.tau)
 
             x = x + delta_x
@@ -101,24 +96,25 @@ class RNN(nn.Module):
             if visible_activity:
                 unit_activity[:,i+1,:] = x
 
-            output = torch.matmul(self.activation(x), self.w) / self.network_size
-            z[:, i] = output
+            output = torch.matmul(r, self.w) / self.network_size
+            z[:, i] = output.squeeze()
 
         if visible_activity:
             return z, unit_activity
         else:
             return z
 
+
     def get_mean_cov(self):
         """
         Returns the mean and covariance matrix of internal
-        parameters in the form [wi, n, m, w]
+        parameters in the form [m, n, wi, w]
         """
         m=self.m.detach().numpy()
         n=self.n.detach().numpy()
         wi=self.wi.detach().numpy()
         w=self.w.detach().numpy()
-        vectors = [wi, n, m, w]
+        vectors = [m, n, wi, w]
 
         mean = np.mean(vectors, axis=1)
         cov_matrix=np.cov(vectors)
