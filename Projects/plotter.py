@@ -20,7 +20,7 @@ def visCov(model):
         m= model.m.detach().numpy().squeeze()
 
         vectors = [wi, n, m, w]
-        labels = ['I', 'n', 'm', 'w']
+        names = ['I', 'n', 'm', 'w']
 
         cov=np.cov(vectors)
         cov=np.triu(cov, k=1)
@@ -35,8 +35,8 @@ def visCov(model):
         ax.yaxis.tick_right()
         ax.set_aspect('equal','box')
 
-        plt.xticks(np.arange(0, 3, step=1), labels[1:], fontsize=20)
-        plt.yticks(np.arange(0, 3, step=1), labels[:-1], fontsize=20)
+        plt.xticks(np.arange(0, 3, step=1), names[1:], fontsize=20)
+        plt.yticks(np.arange(0, 3, step=1), names[:-1], fontsize=20)
         plt.colorbar()
         plt.show()
     
@@ -59,7 +59,7 @@ def visCov(model):
 
 
         vector=[wi,n1,n2,m1,m2,w]
-        labels=['I','n1','n2','m1','m2','w']
+        names=['I','n1','n2','m1','m2','w']
 
         cov=np.cov(vector)
         cov=np.triu(cov,k=1)
@@ -73,8 +73,8 @@ def visCov(model):
         ax.yaxis.tick_right()
         ax.set_aspect('equal','box')
 
-        plt.xticks(np.arange(0, 3, step=1), labels[1:], fontsize=20)
-        plt.yticks(np.arange(0, 3, step=1), labels[:-1], fontsize=20)
+        plt.xticks(np.arange(0, 5, step=1), names[1:], fontsize=20)
+        plt.yticks(np.arange(0, 5, step=1), names[:-1], fontsize=20)
         plt.colorbar()
         plt.show()
 
