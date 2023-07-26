@@ -239,7 +239,7 @@ class OneDimEquivalent(nn.Module):
             sig_mn_hat = self.sig_mn * gauss_int
             sig_nI_hat = self.sig_nI * gauss_int
 
-            dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt / self.tau)
+            dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt)
             k += dk_dt
 
             dv_dt = (-v + in_val) * (self.dt / self.tau)
