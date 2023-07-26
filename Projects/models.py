@@ -114,78 +114,84 @@ class RNN(nn.Module):
         n=self.n.detach().numpy()
         wi=self.wi.detach().numpy()
         w=self.w.detach().numpy()
-        vectors = [m, n, wi, w]
-
-        mean = np.mean(vectors, axis=1)
-        cov_matrix=np.cov(vectors)
+        packaged_vectors = np.zeros((2*self.rank+2, self.network_size))
+        
+        packaged_vectors[0:self.rank] = m.T
+        packaged_vectors[self.rank:2*self.rank] = n.T
+        packaged_vectors[2*self.rank] = wi.flatten()
+        packaged_vectors[2*self.rank+1] = w.flatten()
+        
+        mean = np.mean(packaged_vectors, axis=1)
+        cov_matrix = np.cov(packaged_vectors)
 
         return torch.tensor(mean), torch.tensor(cov_matrix)
 
 
 
-class FittedRankOneRNN(nn.Module):
-    
-    def __init__(self, mean, cov_mat, network_size=128):
-        
-        super(FittedRankOneRNN, self).__init__()
-        self.network_size = network_size
-        self.rank=1
-        self.mean = mean
-        self.cov_mat = cov_mat
-        
+class FittedRNN(nn.Module):
+
+    def __init__(self, model):
+
+        super(FittedRNN, self).__init__()
+
+        self.network_size = model.network_size
+        self.rank= model.rank
+        mean, cov_mat = model.get_mean_cov()
+
         mean = mean.numpy()
         cov_mat = cov_mat.numpy()
-        
-        params = np.random.multivariate_normal(mean, cov_mat, size=network_size)
-        self.m = torch.tensor(params[:,2], dtype=torch.float)
-        self.n = torch.tensor(params[:,1], dtype=torch.float)
-        self.wi = torch.tensor(params[:,0], dtype=torch.float)
-        self.w = torch.tensor(params[:,3], dtype=torch.float)
-        self.x0 = torch.zeros(network_size, dtype=torch.float)
-        
+
+        params = np.random.multivariate_normal(mean, cov_mat, size=self.network_size)
+        self.m = torch.tensor(params[:,0:self.rank], dtype=torch.float)
+        self.n = torch.tensor(params[:,self.rank:2*self.rank], dtype=torch.float)
+        self.wi = torch.tensor(params[:,-2], dtype=torch.float)
+        self.w = torch.tensor(params[:,-1], dtype=torch.float).unsqueeze(1)
+
         # Parameters for weight update formula
         self.tau = 100 #ms
         self.dt = 20 #ms
 
         # Activation function
         self.activation = nn.Tanh()
-        
-        
-    def forward(self, u,visible_activity=False):
+
+
+    def forward(self, u, visible_activity=False):
+
+        # print(u)
+        if len(u.shape) == 1:
+            u = u.unsqueeze(0)
+
         input_len=u.size(1)
         batch_size=u.size(0)
-        x = self.x0 
+
+        x = torch.zeros(batch_size, self.network_size)
         z = torch.zeros(u.shape)
-        
+
         r = self.activation(x)
-        
+
         if visible_activity:
             unit_activity = torch.zeros(batch_size, input_len+1, self.network_size)
             unit_activity[:,0,:] = x
-        
-        #unit rank rnn weight matrix J=mn^T/n
-        # J = torch.matmul(self.m[:,None], self.n[None,:]) / self.network_size
-        
+
         for i in range(input_len):
             delta_x = (
-                -x 
-                + r.matmul(self.n[:,None]).matmul(self.m[:,None].t()) / self.network_size       
-                + torch.matmul(u[:,i,None], self.wi[None,:])
+                -x
+                + r.matmul(self.n).matmul(self.m.t()) / self.network_size
+                + torch.outer(u[:,i], self.wi.squeeze())
             ) * (self.dt / self.tau)
-            
+
             x = x + delta_x
             r = self.activation(x)
             if visible_activity:
                 unit_activity[:,i+1,:] = x
-            
-            output = torch.matmul(self.activation(x), self.w) / self.network_size            
-            z[:, i] = output    
-            
+
+            output = torch.matmul(r, self.w) / self.network_size
+            z[:, i] = output.squeeze()
+
         if visible_activity:
             return z, unit_activity
         else:
             return z
-
 
 
 class OneDimEquivalent(nn.Module):
