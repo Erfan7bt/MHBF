@@ -60,11 +60,11 @@ def visCov(model, figsize=(8,8), fontsize=20, cmap='bwr'):
     ax.yaxis.tick_right()
     ax.set_aspect('equal', 'box')
     
-    plt.xticks(np.arange(0, num_ticks, step=1), names[1:], fontsize=fontsize)
-    plt.yticks(np.arange(0, num_ticks, step=1), names[:-1], fontsize=fontsize)
+    plt.xticks(np.arange(0, num_ticks, step=1), names[1:]) #, fontsize=fontsize)
+    plt.yticks(np.arange(0, num_ticks, step=1), names[:-1]) # , fontsize=fontsize)
 
     cbar = plt.colorbar(mappable=im, pad=0.1)
-    cbar.ax.tick_params(labelsize=fontsize)
+    # cbar.ax.tick_params(labelsize=fontsize)
     
     plt.show()
 
