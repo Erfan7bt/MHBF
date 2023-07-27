@@ -1,10 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-def visCov(model):
+def visCov(model, figsize=(8,8), fontsize=20, cmap='bwr'):
     """
-    Visualize the modified triangular covariance matrix of the model. 
+    Visualize the modified triangular covariance matrix of the model.
 
     Ignoring last row and first column.
 
@@ -27,20 +26,8 @@ def visCov(model):
         cov = np.triu(cov, k=1)
         cov = cov[:-1, 1:]
         bound = bound = np.max((np.abs(np.min(cov)), np.abs(np.max(cov))))
-
-        fig, ax = plt.subplots(figsize=(8, 8))
-
-        im = ax.imshow(cov, cmap='RdBu', vmin=-bound, vmax=bound)
-
-        ax.xaxis.tick_top()
-        ax.yaxis.tick_right()
-        ax.set_aspect('equal', 'box')
-
-        plt.xticks(np.arange(0, 3, step=1), names[1:], fontsize=20)
-        plt.yticks(np.arange(0, 3, step=1), names[:-1], fontsize=20)
-
-        plt.colorbar(mappable=im, pad=0.1)
-        plt.show()
+        
+        num_ticks = 3        
 
     elif rank == 2:
         m = model.m.detach().numpy()
@@ -56,27 +43,30 @@ def visCov(model):
         w = model.w.detach().numpy()
         w = w.squeeze()
 
-        vector = [wi, n1, n2, m1, m2, w]
+        vectors = [wi, n1, n2, m1, m2, w]
         names = ['I', 'n1', 'n2', 'm1', 'm2', 'w']
+        
+        num_ticks = 5
+        
+    cov = np.cov(vectors)
+    cov = np.triu(cov, k=1)
+    cov = cov[:-1, 1:]
+    bound = np.max((np.abs(np.min(cov)), np.abs(np.max(cov))))
 
-        cov = np.cov(vector)
-        cov = np.triu(cov, k=1)
-        cov = cov[:-1, 1:]
-        bound = np.max((np.abs(np.min(cov)), np.abs(np.max(cov))))
+    fig, ax = plt.subplots(figsize=figsize)
+    im = ax.imshow(cov, cmap=cmap, vmin=-bound, vmax=bound)
 
-        fig, ax = plt.subplots(figsize=(10, 10))
-        im = ax.imshow(cov, cmap='RdBu', vmin=-bound, vmax=bound)
+    ax.xaxis.tick_top()
+    ax.yaxis.tick_right()
+    ax.set_aspect('equal', 'box')
+    
+    plt.xticks(np.arange(0, num_ticks, step=1), names[1:], fontsize=fontsize)
+    plt.yticks(np.arange(0, num_ticks, step=1), names[:-1], fontsize=fontsize)
 
-        ax.xaxis.tick_top()
-        ax.yaxis.tick_right()
-        ax.set_aspect('equal', 'box')
-
-        plt.xticks(np.arange(0, 5, step=1), names[1:], fontsize=20)
-        plt.yticks(np.arange(0, 5, step=1), names[:-1], fontsize=20)
-
-        plt.colorbar(mappable=im, pad=0.1)
-        plt.show()
-
+    cbar = plt.colorbar(mappable=im, pad=0.1)
+    cbar.ax.tick_params(labelsize=fontsize)
+    
+    plt.show()
 
 def visITO(data, model):
     """
