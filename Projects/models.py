@@ -193,15 +193,21 @@ class FittedRNN(nn.Module):
 
 class OneDimEquivalent(nn.Module):
 
-    def __init__(self, network_size=128, sig_m=1, sig_n=1, sig_I=1, sig_mn=1.4, sig_nI=2.6):
+    def __init__(self,model):
 
         super(OneDimEquivalent, self).__init__()
-        self.network_size = network_size
+        
+        self.rank= model.rank
+        mean, cov_mat = model.get_mean_cov()
+        cov_mat = cov_mat.detach().numpy()
+        #[m, n, wi, w]
 
-        self.sig_m = sig_m
-        self.sig_I = sig_I
-        self.sig_mn = sig_mn
-        self.sig_nI = sig_nI
+        self.sig_m = cov_mat[0,0]**0.5
+        self.sig_I = cov_mat[2,2]**0.5
+        self.sig_mn = cov_mat[0,1]
+        self.sig_nI = cov_mat[1,2]
+        self.sig_mw = cov_mat[0,3]
+        self.sig_Iw = cov_mat[2,3]
 
         self.tau = 100  # ms
         self.dt = 20  # ms
@@ -209,10 +215,11 @@ class OneDimEquivalent(nn.Module):
         self.activation = np.tanh
         self.d_act = lambda x: 1 - np.tanh(x)**2
 
-    def forward(self, u, visible_activity=False):
+    def forward(self, u):
 
         k = 0
         v = 0
+        z = 0
 
         u = u.detach().numpy().flatten()
 
@@ -220,9 +227,11 @@ class OneDimEquivalent(nn.Module):
 
         k_hist = torch.zeros(in_size + 1)
         v_hist = torch.zeros(in_size + 1)
+        z_hist = torch.zeros(in_size + 1)
 
         k_hist[0] = k
         v_hist[0] = v
+        z_hist[0] = z
 
         a = 5
 
@@ -239,20 +248,113 @@ class OneDimEquivalent(nn.Module):
 
             sig_mn_hat = self.sig_mn * gauss_int
             sig_nI_hat = self.sig_nI * gauss_int
+            sig_mw_hat = self.sig_mw * gauss_int
+            # sig_Iw_hat = self.sig_Iw * gauss_int
 
-            dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt)
+            dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt/self.tau)
             k += dk_dt
 
             dv_dt = (-v + in_val) * (self.dt / self.tau)
             v += dv_dt
 
+            z= sig_mw_hat*k 
             # print(idx, k, delta, gauss_int)
 
             k_hist[idx+1] = k
             v_hist[idx+1] = v
+            z_hist[idx+1] = z
+        
+        return torch.Tensor(z_hist)
+    
+class TwoDimEquivalent(nn.Module):
+    def __init__(self, model):
 
-        to_ret = torch.Tensor(self.activation(k_hist))
+        super(TwoDimEquivalent, self).__init__()
 
-        if visible_activity:
-            return self.activation(k), to_ret
-        return self.activation(k)
+        self.rank = model.rank
+        mean, cov_mat = model.get_mean_cov()
+
+        cov_mat = cov_mat.detach().numpy()
+        #[m, n, wi, w]
+
+        self.sig_m1 = cov_mat[0, 0]**0.5
+        self.sig_m2 = cov_mat[1, 1]**0.5
+        self.sig_I = cov_mat[2, 2]**0.5
+        self.sig_m1n1 = cov_mat[0, 2]
+        self.sig_m2n2 = cov_mat[1, 3]
+        self.sig_n1I = cov_mat[2, 4]
+        self.sig_n2I = cov_mat[3, 4]
+        self.sig_m1w = cov_mat[0, 5]
+        self.sig_m2w = cov_mat[1, 5]
+        self.sig_Iw = cov_mat[4, 5]
+
+
+        self.tau = 100  # ms
+        self.dt = 20  # ms
+
+        self.activation = np.tanh
+        self.d_act = lambda x: 1 - np.tanh(x)**2
+
+    def forward(self, u):
+
+        k1= 0
+        k2 = 0
+        v = 0
+        z = 0
+
+        u = u.detach().numpy().flatten()
+
+        in_size = u.size
+
+        k_hist = torch.zeros(in_size + 1, 2)
+        v_hist = torch.zeros(in_size + 1)
+        z_hist = torch.zeros(in_size + 1)
+
+        k_hist[0,0] =k1
+        k_hist[0,1] = k2 
+        v_hist[0] = v
+        z_hist[0] = z
+
+        a = 5
+
+        print("idx, k, delta, gauss_int")
+
+        for idx, in_val in enumerate(u):
+
+            delta = (
+                (self.sig_m1**2)*(k1**2) +
+                (self.sig_m2**2)*(k2**2)+ 
+                (self.sig_I**2)*(in_val**2)
+                )**0.5
+
+            def gauss_f(z): return self.d_act(delta*z)*np.exp(-(z**2)/2)
+            gauss_int = quadrature(gauss_f, -a, a)
+            gauss_int = gauss_int[0]
+            gauss_int /= 2*np.pi
+
+            sig_m1n1_hat = self.sig_m1n1 * gauss_int
+            sig_m2n2_hat = self.sig_m2n2 * gauss_int
+            sig_n1I_hat = self.sig_n1I * gauss_int
+            sig_n2I_hat = self.sig_n2I * gauss_int
+            sig_m1w_hat = self.sig_m1w * gauss_int
+            sig_m2w_hat = self.sig_m2w * gauss_int
+            sig_Iw_hat = self.sig_Iw * gauss_int
+
+            dk1_dt = (-k1 + sig_m1n1_hat*k1 + sig_n1I_hat*v) * (self.dt/self.tau)
+            k1 += dk1_dt
+            dk2_dt = (-k2 + sig_m2n2_hat*k2 + sig_n2I_hat*v) * (self.dt/self.tau)
+            k2 += dk2_dt
+
+            dv_dt = (-v + in_val) * (self.dt / self.tau)
+            v += dv_dt
+
+            z= sig_m1w_hat*k1 + sig_m2w_hat*k2 + sig_Iw_hat*v
+
+            # print(idx, k, delta, gauss_int)
+
+            k_hist[idx+1,0] = k1
+            k_hist[idx+1,1] = k2
+            v_hist[idx+1] = v
+            z_hist[idx+1] = z
+
+        return torch.Tensor(z_hist)
