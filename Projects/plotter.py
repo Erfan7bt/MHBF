@@ -1,7 +1,8 @@
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
 
-def visCov(model, figsize=(8,8), fontsize=20, cmap='bwr'):
+def visCov(model, figsize=(8,8), fontsize=20, cmap='bwr', flip_m_n=False):
     """
     Visualize the modified triangular covariance matrix of the model.
 
@@ -19,6 +20,10 @@ def visCov(model, figsize=(8,8), fontsize=20, cmap='bwr'):
         n = model.n.detach().numpy().squeeze()
         m = model.m.detach().numpy().squeeze()
 
+        if flip_m_n:
+            m = -1 * m
+            n = -1 * n
+
         vectors = [wi, n, m, w]
         names = ['I', 'n', 'm', 'w']
 
@@ -31,10 +36,15 @@ def visCov(model, figsize=(8,8), fontsize=20, cmap='bwr'):
 
     elif rank == 2:
         m = model.m.detach().numpy()
+        n = model.n.detach().numpy()
+
+        if flip_m_n:
+            m = -1 * m
+            n = -1 * n
+
         m1 = m[:, 0]
         m2 = m[:, 1]
 
-        n = model.n.detach().numpy()
         n1 = n[:, 0]
         n2 = n[:, 1]
 
@@ -289,7 +299,10 @@ def plot_input_range(model, f_in_vec, in_params,
             
     ax = plt.gca()
     ax.set_facecolor(background)
-    
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+
+   
     plt.legend(loc='right')
     plt.show()
 
@@ -407,4 +420,26 @@ def plot_network_in_m_i(model, f_in_vec, in_params,
 
     # Put a legend to the right of the current axis
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.show()
+    plt.show() 
+
+
+def plot_scatter(x, y,
+                 xlabel="", ylabel="",
+                 figsize=(5,5)):
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    ax.scatter(x, y, s=15, c='lightslategray')
+    ax.scatter(np.mean(x), np.mean(y), s=30, c='r', label="mean")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.xaxis.set_label_position('top')
+    ax.yaxis.set_label_position('right')
+    ax.xaxis.set_ticks_position('top')
+    ax.yaxis.set_ticks_position('right')
+    ax.spines['left'].set_position('zero')
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['right'].set_color('none')
+    ax.spines['top'].set_color('none')
+    ax.legend()
+
+
+
