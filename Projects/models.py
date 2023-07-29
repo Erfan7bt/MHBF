@@ -39,7 +39,7 @@ def train(dataloader, model, device, lr=5e-3, T=15, plotloss=False):
         if batch % 100 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-    
+
     if plotloss:
         plt.figure(figsize=(10, 5))
         plt.title("learning curve")
@@ -47,6 +47,7 @@ def train(dataloader, model, device, lr=5e-3, T=15, plotloss=False):
         plt.ylabel("Loss")
         plt.xlabel("batch")
         plt.savefig(f"learning_curve of rank {model.rank} model.png")
+
 
 class RNN(nn.Module):
 
@@ -120,20 +121,20 @@ class RNN(nn.Module):
         Returns the mean and covariance matrix of internal
         parameters in the form [m, n, wi, w]
         """
-        m=self.m.detach().numpy()
-        n=self.n.detach().numpy()
-        wi=self.wi.detach().numpy()
-        w=self.w.detach().numpy()
+        m = self.m.detach().numpy()
+        n = self.n.detach().numpy()
+        wi = self.wi.detach().numpy()
+        w = self.w.detach().numpy()
         packaged_vectors = np.zeros((2*self.rank+2, self.network_size))
-        
+
         packaged_vectors[0:self.rank] = m.T
         packaged_vectors[self.rank:2*self.rank] = n.T
         packaged_vectors[2*self.rank] = wi.flatten()
         packaged_vectors[2*self.rank+1] = w.flatten()
-        
+
         mean = np.mean(packaged_vectors, axis=1)
         cov_matrix = np.cov(packaged_vectors)
-       
+
         return torch.tensor(mean), torch.tensor(cov_matrix)
 
 
@@ -144,16 +145,18 @@ class FittedRNN(nn.Module):
         super(FittedRNN, self).__init__()
 
         self.network_size = model.network_size
-        self.rank= model.rank
+        self.rank = model.rank
         mean, cov_mat = model.get_mean_cov()
         mean = mean.numpy()
         cov_mat = cov_mat.numpy()
 
-        params = np.random.multivariate_normal(mean, cov_mat, size=self.network_size)
-        self.m = torch.tensor(params[:,0:self.rank], dtype=torch.float)
-        self.n = torch.tensor(params[:,self.rank:2*self.rank], dtype=torch.float)
-        self.wi = torch.tensor(params[:,-2], dtype=torch.float)
-        self.w = torch.tensor(params[:,-1], dtype=torch.float).unsqueeze(1)
+        params = np.random.multivariate_normal(
+            mean, cov_mat, size=self.network_size)
+        self.m = torch.tensor(params[:, 0:self.rank], dtype=torch.float)
+        self.n = torch.tensor(
+            params[:, self.rank:2*self.rank], dtype=torch.float)
+        self.wi = torch.tensor(params[:, -2], dtype=torch.float)
+        self.w = torch.tensor(params[:, -1], dtype=torch.float).unsqueeze(1)
 
         # Parameters for weight update formula
         self.tau = 100  # ms
@@ -168,8 +171,8 @@ class FittedRNN(nn.Module):
         if len(u.shape) == 1:
             u = u.unsqueeze(0)
 
-        input_len=u.size(1)
-        batch_size=u.size(0)
+        input_len = u.size(1)
+        batch_size = u.size(0)
 
         x = torch.zeros(batch_size, self.network_size)
         z = torch.zeros(u.shape)
@@ -177,19 +180,20 @@ class FittedRNN(nn.Module):
         r = self.activation(x)
 
         if visible_activity:
-            unit_activity = torch.zeros(batch_size, input_len+1, self.network_size)
-            unit_activity[:,0,:] = x
+            unit_activity = torch.zeros(
+                batch_size, input_len+1, self.network_size)
+            unit_activity[:, 0, :] = x
         for i in range(input_len):
             delta_x = (
                 -x
                 + r.matmul(self.n).matmul(self.m.t()) / self.network_size
-                + torch.outer(u[:,i], self.wi.squeeze())
-           ) * (self.dt / self.tau)
+                + torch.outer(u[:, i], self.wi.squeeze())
+            ) * (self.dt / self.tau)
 
             x = x + delta_x
             r = self.activation(x)
             if visible_activity:
-                unit_activity[:,i+1,:] = x
+                unit_activity[:, i+1, :] = x
 
             output = torch.matmul(r, self.w) / self.network_size
             z[:, i] = output.squeeze()
@@ -202,10 +206,10 @@ class FittedRNN(nn.Module):
 
 class OneDimEquivalent(nn.Module):
 
-    def __init__(self,model, given_params=False):
+    def __init__(self, model, given_params=False):
 
         super(OneDimEquivalent, self).__init__()
-        
+
         if given_params:
             self.sig_m = 1
             self.sig_I = 1
@@ -215,12 +219,12 @@ class OneDimEquivalent(nn.Module):
         else:
             _, cov_mat = model.get_mean_cov()
             cov_mat = cov_mat.detach().numpy()
-            #[m, n, wi, w]
-            self.sig_m = cov_mat[0,0]**0.5
-            self.sig_I = cov_mat[2,2]**0.5
-            self.sig_mn = cov_mat[0,1]
-            self.sig_nI = cov_mat[1,2]
-            self.sig_mw = cov_mat[0,3]
+            # [m, n, wi, w]
+            self.sig_m = cov_mat[0, 0]**0.5
+            self.sig_I = cov_mat[2, 2]**0.5
+            self.sig_mn = cov_mat[0, 1]
+            self.sig_nI = cov_mat[1, 2]
+            self.sig_mw = cov_mat[0, 3]
 
         self.tau = 100  # ms
         self.dt = 20  # ms
@@ -270,16 +274,16 @@ class OneDimEquivalent(nn.Module):
             dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt/self.tau)
             k += dk_dt
 
-
-            z= self.sig_mw*k 
+            z = self.sig_mw*k
             # print(idx, k, delta, gauss_int)
 
             # k_hist[idx+1] = k
             # v_hist[idx+1] = v
             z_hist[idx+1] = z
-        
+
         return torch.Tensor(z_hist)
-    
+
+
 class TwoDimEquivalent(nn.Module):
     def __init__(self, model, given_params=False):
 
@@ -287,9 +291,9 @@ class TwoDimEquivalent(nn.Module):
         if given_params:
             self.sig_m1 = 1
             self.sig_m2 = 1
-            self.sig_I =1
+            self.sig_I = 1
             self.sig_m1n1 = 1
-            self.sig_m2n2 = 1
+            self.sig_m2n2 = 0.5
             self.sig_n1I = 0.5
             self.sig_n2I = 1.9
             self.sig_m1w = 2.8
@@ -299,7 +303,7 @@ class TwoDimEquivalent(nn.Module):
             _, cov_mat = model.get_mean_cov()
 
             cov_mat = cov_mat.detach().numpy()
-            #[m, n, wi, w]
+            # [m, n, wi, w]
 
             self.sig_m1 = cov_mat[0, 0]**0.5
             self.sig_m2 = cov_mat[1, 1]**0.5
@@ -311,8 +315,6 @@ class TwoDimEquivalent(nn.Module):
             self.sig_m1w = cov_mat[0, 5]
             self.sig_m2w = cov_mat[1, 5]
 
-
-
         self.tau = 100  # ms
         self.dt = 20  # ms
 
@@ -321,7 +323,7 @@ class TwoDimEquivalent(nn.Module):
 
     def forward(self, u):
 
-        k1= 0
+        k1 = 0
         k2 = 0
         v = 0
         z = 0
@@ -335,7 +337,7 @@ class TwoDimEquivalent(nn.Module):
         z_hist = torch.zeros(in_size + 1)
 
         # k_hist[0,0] =k1
-        # k_hist[0,1] = k2 
+        # k_hist[0,1] = k2
         # v_hist[0] = v
         z_hist[0] = z
 
@@ -347,9 +349,9 @@ class TwoDimEquivalent(nn.Module):
 
             delta = (
                 (self.sig_m1**2)*(k1**2) +
-                (self.sig_m2**2)*(k2**2)+ 
+                (self.sig_m2**2)*(k2**2) +
                 (self.sig_I**2)*(in_val**2)
-                )**0.5
+            )**0.5
 
             def gauss_f(z): return self.d_act(delta*z)*np.exp(-(z**2)/2)
             gauss_int = quadrature(gauss_f, -a, a)
@@ -364,16 +366,18 @@ class TwoDimEquivalent(nn.Module):
             # sig_m2w_hat = self.sig_m2w * gauss_int
             # sig_Iw_hat = self.sig_Iw * gauss_int
 
-            dk1_dt = (-k1 + sig_m1n1_hat*k1 + sig_n1I_hat*v) * (self.dt/self.tau)
+            dk1_dt = (-k1 + sig_m1n1_hat*k1 + sig_n1I_hat*v) * \
+                (self.dt/self.tau)
             k1 += dk1_dt
 
-            dk2_dt = (-k2 + sig_m2n2_hat*k2 + sig_n2I_hat*v) * (self.dt/self.tau)
+            dk2_dt = (-k2 + sig_m2n2_hat*k2 + sig_n2I_hat*v) * \
+                (self.dt/self.tau)
             k2 += dk2_dt
 
             dv_dt = (-v + in_val) * (self.dt / self.tau)
             v += dv_dt
 
-            z= self.sig_m1w*k1 + self.sig_m2w*k2
+            z = self.sig_m1w*k1 + self.sig_m2w*k2
 
             # print(idx, k, delta, gauss_int)
 
