@@ -253,7 +253,7 @@ class OneDimEquivalent(nn.Module):
             
             for j in range(u.shape[0]):
                 def gauss_f(z): return self.d_act(delta[j]*z)*np.exp(-(z**2)/2)
-                gauss = quadrature(gauss_f, -a, a)
+                gauss = quadrature(gauss_f, -a, a,tol=1e-6, rtol=1e-6, maxiter=1000)
                 gauss_int[j] = gauss[0]
                 
             gauss_int /= (2*np.pi)**0.5
@@ -317,19 +317,18 @@ class TwoDimEquivalent(nn.Module):
 
         u = u.detach().numpy()
         
-        k = np.zeros(u.shape[0])
+        k1 = np.zeros(u.shape[0])
+        k2 = np.zeros(u.shape[0])
         v = np.zeros(u.shape[0])
         z = np.zeros(u.shape[0])
         
         z_hist = np.zeros((u.shape[0], u.shape[1]+1))  
 
-        z_hist[0] = z
-
         a = 5
 
-        print("idx, k, delta, gauss_int")
+        # print("idx, k, delta, gauss_int")
 
-        for idx in range(u.shape[0]):
+        for idx in range(u.shape[1]):
             
             in_val = u[:, idx]
 
@@ -343,7 +342,7 @@ class TwoDimEquivalent(nn.Module):
             
             for j in range(u.shape[0]):
                 def gauss_f(z): return self.d_act(delta[j]*z)*np.exp(-(z**2)/2)
-                gauss = quadrature(gauss_f, -a, a)
+                gauss = quadrature(gauss_f, -a, a, tol=1e-6, rtol=1e-6, maxiter=1000)
                 gauss_int[j] = gauss[0]
                 
             gauss_int /= (2*np.pi)**0.5
@@ -374,6 +373,6 @@ class TwoDimEquivalent(nn.Module):
             # k_hist[idx+1,0] = k1
             # k_hist[idx+1,1] = k2
             # v_hist[idx+1] = v
-            z_hist[idx+1] = z
+            z_hist[:,idx+1] = z
 
         return torch.Tensor(z_hist)
