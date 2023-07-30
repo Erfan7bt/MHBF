@@ -11,7 +11,6 @@ def single_decision(strength, std=0.03, num_timesteps=75):
     return u, y
       
 def parametric(f_i, pause=50, f_min=10, f_max=34, n_time_step=75):
-    print(f_i)
     f_1, f_2 = f_i[0], f_i[1]
     f_u = lambda f: (f - (f_max+f_min)/2) / (f_max - f_min)
     u = np.zeros(n_time_step)
