@@ -206,10 +206,10 @@ class FittedRNN(nn.Module):
 
 class OneDimEquivalent(nn.Module):
 
-    def __init__(self, model, given_params=False):
+    def __init__(self, model, given_params=False, fixedPoint=False):
 
         super(OneDimEquivalent, self).__init__()
-
+        self.fixedPoint = fixedPoint
         if given_params:
             self.sig_m = 1
             self.sig_I = 1
@@ -226,8 +226,8 @@ class OneDimEquivalent(nn.Module):
             self.sig_nI = cov_mat[1, 2]
             self.sig_mw = cov_mat[0, 3]
 
-        self.tau = 100  # ms
-        self.dt = 20  # ms
+        self.tau = 0.1  # ms
+        self.dt = 0.02 # ms
 
         self.activation = np.tanh
         self.d_act = lambda x: 1 - np.tanh(x)**2
@@ -240,7 +240,9 @@ class OneDimEquivalent(nn.Module):
         v = np.zeros(u.shape[0])
         z = np.zeros(u.shape[0])
         
-        z_hist = np.zeros((u.shape[0], u.shape[1]+1))    
+        z_hist = np.zeros((u.shape[0], u.shape[1]+1))
+        k_hist = np.zeros((u.shape[0], u.shape[1]+1))
+        dk_hist = np.zeros((u.shape[0], u.shape[1]+1))   
 
         a = 5
 
@@ -269,9 +271,16 @@ class OneDimEquivalent(nn.Module):
             dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt/self.tau)
             k += dk_dt
 
-            z = self.sig_mw*k
+            if self.fixedPoint:
+                k_hist[:,idx+1] = k
+                dk_hist[:,idx+1] = dk_dt/self.dt
+
+            z = self.sig_mw*k 
 
             z_hist[:,idx+1] = z
+
+        if self.fixedPoint:
+            return torch.Tensor(k_hist), torch.Tensor(dk_hist)
 
         return torch.Tensor(z_hist)
 
