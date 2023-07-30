@@ -360,7 +360,7 @@ def plot_neuron_states(model, u, y,
         plt.plot(act, alpha=abs(w[i]), c=color, linewidth=linewidth)
 
 
-def plot_network_in_m_i(model, f_in_vec, in_params, 
+def plot_network_in_ax1_ax2(model, f_in_vec, in_params, ax1_str,ax2_str, 
                         num_repeat=10, 
                         figsize=(8,6),
                         alpha=0,
@@ -369,27 +369,48 @@ def plot_network_in_m_i(model, f_in_vec, in_params,
     
     if alpha==0:
         alpha = 1/num_repeat
-    
+        
+    def get_axis(model, ax):
+        if ax == "m":
+            return model.m.detach().numpy().squeeze()
+        if ax == "n":
+            return model.n.detach().numpy().squeeze()
+        if ax == "m1":
+            return model.m[0].detach().numpy().squeeze()
+        if ax == "m2":
+            return model.m[1].detach().numpy().squeeze()
+        if ax == "n1":
+            return model.n[0].detach().numpy().squeeze()
+        if ax == "n2":
+            return model.n[1].detach().numpy().squeeze()
+        if ax == "w":
+            return model.w.detach().numpy().squeeze()
+        if ax == "I":
+            return model.wi.detach().numpy().squeeze()
+        if ax == "m":
+            return model.m.detach().numpy().squeeze()
+        if ax == "m":
+            return model.m.detach().numpy().squeeze()
+         
     cmap = plt.cm.get_cmap('turbo', len(in_params))
 
     plt.figure(figsize=figsize)
-    plt.xlabel("m component")
-    plt.ylabel("I component")
+    plt.xlabel(ax1_str+" component")
+    plt.ylabel(ax2_str+" component")
     
     
-    wi = model.wi.detach().numpy().squeeze()
-    m = model.m.detach().numpy().squeeze()
+    ax1_vec = get_axis(model, ax1_str)
+    ax2_vec = get_axis(model, ax2_str)
     
-    wi_dot_wi = wi.dot(wi)
-    m_dot_m = m.dot(m)
+    wi_dot_wi = ax1_vec.dot(ax1_vec)
+    m_dot_m = ax2_vec.dot(ax2_vec)
     
-    wi_norm = wi / wi_dot_wi**0.5
-    m_norm = m / m_dot_m**0.5
+    wi_norm = ax1_vec / wi_dot_wi**0.5
+    m_norm = ax2_vec / m_dot_m**0.5
     
     m_dot_wi = m_norm.dot(wi_norm)
     
-    plt.title("$m \cdot I = {:1.5f}$".format(m_dot_wi))
-    
+    plt.title("${} \cdot {} = {:1.5f}$".format(ax1_str, ax2_str, m_dot_wi))    
     
     for idx, par in enumerate(in_params):
         for i in range(num_repeat):
@@ -398,8 +419,8 @@ def plot_network_in_m_i(model, f_in_vec, in_params,
             z, unit_activity = model(u, visible_activity=True)
             unit_activity = unit_activity.detach().numpy().squeeze()
 
-            wi_comp = (wi @ unit_activity.T) / wi_dot_wi
-            m_comp = (m @ unit_activity.T) / m_dot_m
+            wi_comp = (ax1_vec @ unit_activity.T) / wi_dot_wi
+            m_comp = (ax2_vec @ unit_activity.T) / m_dot_m
             
             if i == 0:
                 plt.plot(m_comp, wi_comp, 
@@ -439,7 +460,7 @@ def plot_scatter(x, y,
     ax.spines['bottom'].set_position('zero')
     ax.spines['right'].set_color('none')
     ax.spines['top'].set_color('none')
-    ax.legend()
+    # ax.legend()
 
 
 

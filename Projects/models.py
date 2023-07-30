@@ -315,29 +315,23 @@ class TwoDimEquivalent(nn.Module):
 
     def forward(self, u):
 
-        k1 = 0
-        k2 = 0
-        v = 0
-        z = 0
+        u = u.detach().numpy()
+        
+        k = np.zeros(u.shape[0])
+        v = np.zeros(u.shape[0])
+        z = np.zeros(u.shape[0])
+        
+        z_hist = np.zeros((u.shape[0], u.shape[1]+1))  
 
-        u = u.detach().numpy().flatten()
-
-        in_size = u.size
-
-        # k_hist = torch.zeros(in_size + 1, 2)
-        # v_hist = torch.zeros(in_size + 1)
-        z_hist = torch.zeros(in_size + 1)
-
-        # k_hist[0,0] =k1
-        # k_hist[0,1] = k2
-        # v_hist[0] = v
         z_hist[0] = z
 
         a = 5
 
         print("idx, k, delta, gauss_int")
 
-        for idx, in_val in enumerate(u):
+        for idx in range(u.shape[0]):
+            
+            in_val = u[:, idx]
 
             delta = (
                 (self.sig_m1**2)*(k1**2) +
@@ -345,9 +339,13 @@ class TwoDimEquivalent(nn.Module):
                 (self.sig_I**2)*(in_val**2)
             )**0.5
 
-            def gauss_f(z): return self.d_act(delta*z)*np.exp(-(z**2)/2)
-            gauss_int = quadrature(gauss_f, -a, a)
-            gauss_int = gauss_int[0]
+            gauss_int = np.zeros(u.shape[0])
+            
+            for j in range(u.shape[0]):
+                def gauss_f(z): return self.d_act(delta[j]*z)*np.exp(-(z**2)/2)
+                gauss = quadrature(gauss_f, -a, a)
+                gauss_int[j] = gauss[0]
+                
             gauss_int /= (2*np.pi)**0.5
 
             sig_m1n1_hat = self.sig_m1n1 * gauss_int

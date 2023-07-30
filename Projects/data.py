@@ -10,7 +10,9 @@ def single_decision(strength, std=0.03, num_timesteps=75):
     y.fill(np.sign(strength))
     return u, y
       
-def parametric(f_1, f_2, pause=50, f_min=10, f_max=34, n_time_step=75):
+def parametric(f_i, pause=50, f_min=10, f_max=34, n_time_step=75):
+    print(f_i)
+    f_1, f_2 = f_i[0], f_i[1]
     f_u = lambda f: (f - (f_max+f_min)/2) / (f_max - f_min)
     u = np.zeros(n_time_step)
     u[5:11] = f_u(f_1)
@@ -86,7 +88,7 @@ class ParametricDataset(Dataset):
         for trial in range(n_trials):
             f1 = np.random.choice(strength_choices)
             f2 = np.random.choice(strength_choices)
-            u[trial], y[trial] = parametric(f1, f2, pause=pause, n_time_step=n_time_step)
+            u[trial], y[trial] = parametric((f1, f2), pause=pause, n_time_step=n_time_step)
         
         self.u = torch.tensor(u, dtype=torch.float32)
         self.y = torch.tensor(y, dtype=torch.float32)
