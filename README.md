@@ -1,4 +1,10 @@
 # Models of Hogher Brain Function
-TU Berlin - Prof. Dr. Sprekeler
+TU Berlin - Prof. Dr. Sprekeler 
 
-* programming tutorial assginments
+This is a private repositor for storing the assignments of the porgramming tutorial of the course Models of Higher Brain Function.
+
+## list of the assignment and brief description of each topic will be added. 
+
+1. 
+
+  
