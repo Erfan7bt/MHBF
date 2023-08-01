@@ -206,10 +206,10 @@ class FittedRNN(nn.Module):
 
 class OneDimEquivalent(nn.Module):
 
-    def __init__(self, model, given_params=False):
+    def __init__(self, model, given_params=False, fixedPoint=False):
 
         super(OneDimEquivalent, self).__init__()
-
+        self.fixedPoint = fixedPoint
         if given_params:
             self.sig_m = 1
             self.sig_I = 1
@@ -226,8 +226,8 @@ class OneDimEquivalent(nn.Module):
             self.sig_nI = cov_mat[1, 2]
             self.sig_mw = cov_mat[0, 3]
 
-        self.tau = 100  # ms
-        self.dt = 20  # ms
+        self.tau = 0.1  # ms
+        self.dt = 0.02 # ms
 
         self.activation = np.tanh
         self.d_act = lambda x: 1 - np.tanh(x)**2
@@ -240,7 +240,9 @@ class OneDimEquivalent(nn.Module):
         v = np.zeros(u.shape[0])
         z = np.zeros(u.shape[0])
         
-        z_hist = np.zeros((u.shape[0], u.shape[1]+1))    
+        z_hist = np.zeros((u.shape[0], u.shape[1]+1))
+        k_hist = np.zeros((u.shape[0], u.shape[1]+1))
+        dk_hist = np.zeros((u.shape[0], u.shape[1]+1))   
 
         a = 5
 
@@ -253,7 +255,7 @@ class OneDimEquivalent(nn.Module):
             
             for j in range(u.shape[0]):
                 def gauss_f(z): return self.d_act(delta[j]*z)*np.exp(-(z**2)/2)
-                gauss = quadrature(gauss_f, -a, a)
+                gauss = quadrature(gauss_f, -a, a,tol=1e-6, rtol=1e-6, maxiter=1000)
                 gauss_int[j] = gauss[0]
                 
             gauss_int /= (2*np.pi)**0.5
@@ -269,9 +271,16 @@ class OneDimEquivalent(nn.Module):
             dk_dt = (-k + sig_mn_hat*k + sig_nI_hat*v) * (self.dt/self.tau)
             k += dk_dt
 
-            z = self.sig_mw*k
+            if self.fixedPoint:
+                k_hist[:,idx+1] = k
+                dk_hist[:,idx+1] = dk_dt/self.dt
+
+            z = self.sig_mw*k 
 
             z_hist[:,idx+1] = z
+
+        if self.fixedPoint:
+            return torch.Tensor(k_hist), torch.Tensor(dk_hist)
 
         return torch.Tensor(z_hist)
 
@@ -315,29 +324,22 @@ class TwoDimEquivalent(nn.Module):
 
     def forward(self, u):
 
-        k1 = 0
-        k2 = 0
-        v = 0
-        z = 0
-
-        u = u.detach().numpy().flatten()
-
-        in_size = u.size
-
-        # k_hist = torch.zeros(in_size + 1, 2)
-        # v_hist = torch.zeros(in_size + 1)
-        z_hist = torch.zeros(in_size + 1)
-
-        # k_hist[0,0] =k1
-        # k_hist[0,1] = k2
-        # v_hist[0] = v
-        z_hist[0] = z
+        u = u.detach().numpy()
+        
+        k1 = np.zeros(u.shape[0])
+        k2 = np.zeros(u.shape[0])
+        v = np.zeros(u.shape[0])
+        z = np.zeros(u.shape[0])
+        
+        z_hist = np.zeros((u.shape[0], u.shape[1]+1))  
 
         a = 5
 
-        print("idx, k, delta, gauss_int")
+        # print("idx, k, delta, gauss_int")
 
-        for idx, in_val in enumerate(u):
+        for idx in range(u.shape[1]):
+            
+            in_val = u[:, idx]
 
             delta = (
                 (self.sig_m1**2)*(k1**2) +
@@ -345,9 +347,13 @@ class TwoDimEquivalent(nn.Module):
                 (self.sig_I**2)*(in_val**2)
             )**0.5
 
-            def gauss_f(z): return self.d_act(delta*z)*np.exp(-(z**2)/2)
-            gauss_int = quadrature(gauss_f, -a, a)
-            gauss_int = gauss_int[0]
+            gauss_int = np.zeros(u.shape[0])
+            
+            for j in range(u.shape[0]):
+                def gauss_f(z): return self.d_act(delta[j]*z)*np.exp(-(z**2)/2)
+                gauss = quadrature(gauss_f, -a, a, tol=1e-6, rtol=1e-6, maxiter=1000)
+                gauss_int[j] = gauss[0]
+                
             gauss_int /= (2*np.pi)**0.5
 
             sig_m1n1_hat = self.sig_m1n1 * gauss_int
@@ -376,6 +382,6 @@ class TwoDimEquivalent(nn.Module):
             # k_hist[idx+1,0] = k1
             # k_hist[idx+1,1] = k2
             # v_hist[idx+1] = v
-            z_hist[idx+1] = z
+            z_hist[:,idx+1] = z
 
         return torch.Tensor(z_hist)
